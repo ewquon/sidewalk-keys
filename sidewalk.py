@@ -32,6 +32,10 @@ class SidewalkKeys(object):
         self.notes = notes
         self.notelength = notelength
         self.samplefreq = samplefreq
+        # camera object
+        self.camera = None
+        # current camera frame
+        self.frame = None
         # running average to get background
         self.avgframe = None
         # load raw sound data for each note
@@ -55,11 +59,11 @@ class SidewalkKeys(object):
               show_framedelta=False,
               show_threshold=False,
              ):
-        camera = cv2.VideoCapture(device)
-        if not camera.isOpened():
-            camera.open(device)
+        self.camera = cv2.VideoCapture(device)
+        if not self.camera.isOpened():
+            self.camera.open(device)
         while True:
-            grabbed,newframe = camera.read()
+            grabbed,newframe = self.camera.read()
             self.frame = newframe
             if not grabbed:
                 print('Problem getting camera frame')
