@@ -53,7 +53,8 @@ class SidewalkKeys(object):
         if not camera.isOpened():
             camera.open(dev)
         while True:
-            (grabbed,newframe) = camera.read()
+            grabbed,newframe = camera.read()
+            self.frame = newframe
             if not grabbed:
                 print('Problem getting camera frame')
                 break
@@ -61,9 +62,12 @@ class SidewalkKeys(object):
             bkg = self._extract_background(newframe)
             ref = self._blur_grayscale(bkg)
             gray = self._blur_grayscale(newframe)
+            thresh,delta = self._threshold(ref, gray)
             # update video panels
-            cv2.imshow("Video feed", newframe)
-            cv2.imshow("Background", bkg)
+            cv2.imshow('Video feed', newframe)
+            cv2.imshow('Background', bkg)
+            cv2.imshow('Abs delta', delta)
+            cv2.imshow('Threshold', thresh)
             # if the esc key is pressed, break from the loop
             key = cv2.waitKey(1000//FPS) & 0xFF
             if key == 27: #escape
@@ -103,5 +107,35 @@ class SidewalkKeys(object):
         blurred = cv2.GaussianBlur(gray, (ksize, ksize), 0)
         return blurred
 
+    def _threshold(self,frame0,frame,cutoff=25,dilations=2):
+        """
+        Most of the heavy lifting happens here
+        """
+        # compute absolute difference between frames
+        delta = cv2.absdiff(frame0, frame)
+        # calculate threshold, maxval==255
+        retval,thresh = cv2.threshold(delta, cutoff, 255, cv2.THRESH_BINARY)
+        # dilate the thresholded image to fill holes
+        # - kernel==None ==> simple 3x3 matrix
+        if dilations > 0:
+            thresh = cv2.dilate(thresh, None, iterations=dilations)
+        # get contours
+        # - mode==RETR_EXTERNAL: extreme outer contours only
+        # - method==CHAIN_APPROX_SIMPLE: compresses horizontal, vertical, and
+        #   diagonal segments and leaves only their end points. For example, an
+        #   up-right rectangular contour is encoded with 4 points.
+        contours, _ = cv2.findContours(thresh.copy(),
+                                       cv2.RETR_EXTERNAL, 
+                                       cv2.CHAIN_APPROX_SIMPLE)
+        # loop over contours
+        for cnt in contours:
+            # if contour is too small--ignore it
+            if cv2.contourArea(cnt) < MIN_AREA:
+                continue
+            # compute bounding box
+            x,y,w,h = cv2.boundingRect(cnt)
+            cv2.rectangle(self.frame, (x,y), (x+w,y+h), (0,255,0), thickness=2)
+        return thresh,delta
+        
 
 
