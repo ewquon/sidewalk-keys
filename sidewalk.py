@@ -29,6 +29,9 @@ class SidewalkKeys(object):
         self.notes = notes
         self.notelength = notelength
         self.samplefreq = samplefreq
+        # running average to get background
+        self.avgframe = None
+        # load raw sound data for each note
         self._load_rawdata()
 
     def _load_rawdata(self):
@@ -47,13 +50,29 @@ class SidewalkKeys(object):
         if not camera.isOpened():
             camera.open(dev)
         while True:
-            (grabbed,frame0) = camera.read()
-            cv2.imshow("Video feed", frame0)
+            (grabbed,newframe) = camera.read()
+            assert grabbed
+            # process new frame
+            bkg = self._extract_background(newframe)
+            # update video panels
+            cv2.imshow("Video feed", newframe)
+            cv2.imshow("Background", bkg)
             # if the esc key is pressed, break from the loop
             key = cv2.waitKey(1000//FPS) & 0xFF
             if key == 27: #escape
                 break
+        # clean up
         cv2.destroyAllWindows()
         cv2.waitKey(1) # https://answers.opencv.org/question/102328/destroywindow-and-destroyallwindows-not-working/
         camera.release()
+        self.avgframe = None
+
+    def _extract_background(self,frame,alpha=0.1):
+        # alpha: weight of input image
+        # e.g., see: http://opencvpython.blogspot.com/2012/07/background-extraction-using-running.html
+        if self.avgframe is None:
+            self.avgframe = np.float32(frame)
+        else:
+            cv2.accumulateWeighted(frame, self.avgframe, alpha)
+        return cv2.convertScaleAbs(self.avgframe)
 
