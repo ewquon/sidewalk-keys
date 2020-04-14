@@ -48,10 +48,16 @@ class SidewalkKeys(object):
             for name in self.notes
         }
 
-    def start(self,dev=0):
-        camera = cv2.VideoCapture(dev)
+    def start(self,
+              device=0,
+              show_feed=True,
+              show_background=False,
+              show_framedelta=False,
+              show_threshold=False,
+             ):
+        camera = cv2.VideoCapture(device)
         if not camera.isOpened():
-            camera.open(dev)
+            camera.open(device)
         while True:
             grabbed,newframe = camera.read()
             self.frame = newframe
@@ -64,14 +70,21 @@ class SidewalkKeys(object):
             gray = self._blur_grayscale(newframe)
             thresh,delta = self._threshold(ref, gray)
             # update video panels
-            cv2.imshow('Video feed', newframe)
-            cv2.imshow('Background', bkg)
-            cv2.imshow('Abs delta', delta)
-            cv2.imshow('Threshold', thresh)
+            if show_feed:
+                cv2.imshow('Video feed', newframe)
+            if show_background:
+                cv2.imshow('Background', bkg)
+            if show_framedelta:
+                cv2.imshow('Abs delta', delta)
+            if show_threshold:
+                cv2.imshow('Threshold', thresh)
             # if the esc key is pressed, break from the loop
             key = cv2.waitKey(1000//FPS) & 0xFF
             if key == 27: #escape
                 break
+        self.stop()
+
+    def stop(self):
         # clean up
         cv2.destroyAllWindows()
         cv2.waitKey(1) # https://answers.opencv.org/question/102328/destroywindow-and-destroyallwindows-not-working/
