@@ -19,6 +19,9 @@ saveFrameDelay = 5
 
 
 class SidewalkKeys(object):
+    """This follows the motion tracking example provided here:
+    https://www.pyimagesearch.com/2015/05/25/basic-motion-detection-and-tracking-with-python-and-opencv/
+    """
     def __init__(self,refpath,prefix,
                  notes=['C4','D4','E4','F4','G4'],
                  notelength=2.0,
@@ -51,9 +54,13 @@ class SidewalkKeys(object):
             camera.open(dev)
         while True:
             (grabbed,newframe) = camera.read()
-            assert grabbed
+            if not grabbed:
+                print('Problem getting camera frame')
+                break
             # process new frame
             bkg = self._extract_background(newframe)
+            ref = self._blur_grayscale(bkg)
+            gray = self._blur_grayscale(newframe)
             # update video panels
             cv2.imshow("Video feed", newframe)
             cv2.imshow("Background", bkg)
@@ -68,11 +75,33 @@ class SidewalkKeys(object):
         self.avgframe = None
 
     def _extract_background(self,frame,alpha=0.1):
-        # alpha: weight of input image
-        # e.g., see: http://opencvpython.blogspot.com/2012/07/background-extraction-using-running.html
+        """
+        alpha: weight of input image
+
+        e.g., http://opencvpython.blogspot.com/2012/07/background-extraction-using-running.html
+        """
         if self.avgframe is None:
             self.avgframe = np.float32(frame)
         else:
             cv2.accumulateWeighted(frame, self.avgframe, alpha)
         return cv2.convertScaleAbs(self.avgframe)
+
+    def _blur_grayscale(self,frame0,resize=None,ksize=21):
+        """
+        resize: None or image width (int)
+        ksize: Gaussian kernel size, assumed equal in both directions
+        """
+        # resize (optional)
+        if resize is not None:
+            assert isinstance(resize,int)
+            frame = imutils.resize(frame0, width=resize)
+        else:
+            frame = frame0
+        # convert from blue-green-red to grayscale
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # blur, with automatically computed standard deviations
+        blurred = cv2.GaussianBlur(gray, (ksize, ksize), 0)
+        return blurred
+
+
 
