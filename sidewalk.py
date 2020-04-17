@@ -121,7 +121,8 @@ class SidewalkKeys(object):
             bkg = self._extract_background(newframe)
             ref = self._blur_grayscale(bkg)
             gray = self._blur_grayscale(newframe)
-            thresh,delta = self._threshold(ref, gray)
+            thresh,delta,regions = self._threshold(ref, gray)
+            self._identify_activity(regions)
             # update video panels
             if show_feed:
                 cv2.imshow('Video feed', newframe)
@@ -196,14 +197,26 @@ class SidewalkKeys(object):
                                        cv2.RETR_EXTERNAL, 
                                        cv2.CHAIN_APPROX_SIMPLE)
         # loop over contours
+        regions = []
         for cnt in contours:
             # if contour is too small--ignore it
             if cv2.contourArea(cnt) < MIN_AREA:
                 continue
+            else:
+                regions.append(cnt)
             # compute bounding box
             x,y,w,h = cv2.boundingRect(cnt)
             cv2.rectangle(self.frame, (x,y), (x+w,y+h), (0,255,0), thickness=2)
-        return thresh,delta
+        return thresh,delta,regions
         
-
+    def _identify_activity(self,regions):
+        ptslist = []
+        for cnt in regions:
+            pts = cnt.squeeze()
+            x = np.mean(pts[:,0])
+            y = np.mean(pts[:,1])
+            ptslist.append([x,y])
+            cv2.putText(self.frame, 'x', (int(x),int(y)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255),
+                        thickness=3)
 
