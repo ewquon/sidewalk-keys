@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 import sys,os
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 import datetime
 
 import cv2
@@ -23,10 +25,12 @@ class SidewalkKeys(object):
     https://www.pyimagesearch.com/2015/05/25/basic-motion-detection-and-tracking-with-python-and-opencv/
     """
     def __init__(self,refpath,prefix,
+                 device=0,
                  notes=['C4','D4','E4','F4','G4'],
                  notelength=2.0,
                  samplefreq=44100.,
                 ):
+        self.device = device
         self.refpath = refpath
         self.prefix = prefix
         self.notes = notes
@@ -52,16 +56,61 @@ class SidewalkKeys(object):
             for name in self.notes
         }
 
+    def setup(self,reverseorder=True):
+        """Take a snapshot to use for identifying keyboard layout
+
+        If reverseorder, then keys will go from left to right looking
+        _at_ the camera instead of looking from the camera.
+        """
+        # capture one frame
+        self.camera = cv2.VideoCapture(self.device)
+        grabbed,frame = self.camera.read()
+        region = cv2.selectROI("Select keyboard region and press any key...",
+                               frame,showCrosshair=False)
+        cv2.waitKey(0)
+        self.stop()
+        # determine key extents
+        print(region)
+        x0,y0,width,height = region
+        self.lower_bound = y0
+        self.upper_bound = y0 + height
+        key_bounds = [int(fval) for fval in np.linspace(x0,x0+width,len(self.notes)+1)]
+        keywidth = key_bounds[1] - key_bounds[0]
+        if reverseorder:
+            notes = self.notes[::-1]
+        else:
+            notes = self.notes
+        self.keys = {
+            note: (key_bounds[i], key_bounds[i+1])
+            for i,note in enumerate(notes)
+        }
+        # plot resulting keys
+        fig,ax = plt.subplots(figsize=(12,8))
+        ax.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        #rect = Rectangle((x0,y0), width, height, edgecolor=[0,0,1], fill=None)
+        #ax.add_patch(rect)
+        def plot_key(name):
+            keyx0 = self.keys[name][0]
+            rect = Rectangle((keyx0,y0), keywidth, height, edgecolor=[0,0,1], fill=None)
+            ax.add_patch(rect)
+            xtext = int(keyx0 + keywidth/2)
+            ytext = int(y0 + height/2)
+            ax.text(xtext, ytext, name, fontsize=16, color=[0,0,1],
+                    horizontalalignment='center',
+                    verticalalignment='center')
+        for name in self.notes:
+            plot_key(name)
+
     def start(self,
-              device=0,
               show_feed=True,
               show_background=False,
               show_framedelta=False,
               show_threshold=False,
              ):
-        self.camera = cv2.VideoCapture(device)
+        """Start camera and video identification"""
+        self.camera = cv2.VideoCapture(self.device)
         if not self.camera.isOpened():
-            self.camera.open(device)
+            self.camera.open(self.device)
         while True:
             grabbed,newframe = self.camera.read()
             self.frame = newframe
@@ -89,15 +138,17 @@ class SidewalkKeys(object):
         self.stop()
 
     def stop(self):
-        # clean up
+        """Clean up environment"""
         cv2.destroyAllWindows()
         cv2.waitKey(1) # https://answers.opencv.org/question/102328/destroywindow-and-destroyallwindows-not-working/
-        camera.release()
+        self.camera.release()
+        self.camera = None
         self.avgframe = None
 
-    def _extract_background(self,frame,alpha=0.1):
+    def _extract_background(self,frame,alpha=0.5):
         """
-        alpha: weight of input image
+        alpha: weight of input image: higher values mean that newer frames are
+            weighted more, i.e., the background can change more quickly
 
         e.g., http://opencvpython.blogspot.com/2012/07/background-extraction-using-running.html
         """
