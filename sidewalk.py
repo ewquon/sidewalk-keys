@@ -143,7 +143,8 @@ class SidewalkKeys(object):
         """Clean up environment"""
         cv2.destroyAllWindows()
         cv2.waitKey(1) # https://answers.opencv.org/question/102328/destroywindow-and-destroyallwindows-not-working/
-        self.camera.release()
+        if self.camera is not None:
+            self.camera.release()
         self.camera = None
         self.avgframe = None
 
