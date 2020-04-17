@@ -8,6 +8,7 @@ import datetime
 import cv2
 import imutils
 import simpleaudio as sa
+from sklearn.cluster import AgglomerativeClustering
 
 from piano import read_ref_audio
 
@@ -75,7 +76,7 @@ class SidewalkKeys(object):
         self.lower_bound = y0
         self.upper_bound = y0 + height
         key_bounds = [int(fval) for fval in np.linspace(x0,x0+width,len(self.notes)+1)]
-        keywidth = key_bounds[1] - key_bounds[0]
+        self.keywidth = key_bounds[1] - key_bounds[0]
         if reverseorder:
             notes = self.notes[::-1]
         else:
@@ -91,9 +92,9 @@ class SidewalkKeys(object):
         #ax.add_patch(rect)
         def plot_key(name):
             keyx0 = self.keys[name][0]
-            rect = Rectangle((keyx0,y0), keywidth, height, edgecolor=[0,0,1], fill=None)
+            rect = Rectangle((keyx0,y0), self.keywidth, height, edgecolor=[0,0,1], fill=None)
             ax.add_patch(rect)
-            xtext = int(keyx0 + keywidth/2)
+            xtext = int(keyx0 + self.keywidth/2)
             ytext = int(y0 + height/2)
             ax.text(xtext, ytext, name, fontsize=16, color=[0,0,1],
                     horizontalalignment='center',
@@ -215,8 +216,30 @@ class SidewalkKeys(object):
             pts = cnt.squeeze()
             x = np.mean(pts[:,0])
             y = np.mean(pts[:,1])
-            ptslist.append([x,y])
+            ptslist.append(np.array([x,y]))
             cv2.putText(self.frame, 'x', (int(x),int(y)),
                         cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255),
                         thickness=3)
+        if len(ptslist) > 2:
+            pts = np.array(ptslist)
+            clustering = AgglomerativeClustering(n_clusters=None,
+                                                 distance_threshold=2*self.keywidth).fit(pts)
+            Nclusters = len(np.unique(clustering.labels_))
+            #print(np.unique(clustering.labels_))
+            newpts = [np.zeros(2) for _ in range(Nclusters)]
+            counts = np.zeros(Nclusters)
+            for ic,pt in zip(clustering.labels_, ptslist):
+                newpts[ic] += pt
+                counts[ic] += 1
+            newpts = [(newpts[ic] / counts[ic]).astype(int) for ic in range(Nclusters)]
+        elif len(ptslist) == 1:
+            pt = ptslist[0]
+            newpts = [[int(pt[0]), int(pt[1])]]
+        else:
+            newpts = []
+        for ic,pt in enumerate(newpts):
+            cv2.putText(self.frame, str(ic), (pt[0],pt[1]),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0),
+                        thickness=3)
+        return newpts
 
