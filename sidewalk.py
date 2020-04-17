@@ -29,7 +29,7 @@ class SidewalkKeys(object):
                  device=0,
                  notes=['C4','D4','E4','F4','G4'],
                  notelength=2.0,
-                 samplefreq=44100.,
+                 samplefreq=44100,
                 ):
         self.device = device
         self.refpath = refpath
@@ -48,13 +48,13 @@ class SidewalkKeys(object):
 
     def _load_rawdata(self):
         self.rawdata = {
-            name: read_ref_audio(
-                name,
+            note: read_ref_audio(
+                note,
                 refpath=self.refpath,
                 prefix=self.prefix,
                 sampleperiod=self.notelength,
             )
-            for name in self.notes
+            for note in self.notes
         }
 
     def setup(self,reverseorder=True):
@@ -73,8 +73,6 @@ class SidewalkKeys(object):
         # determine key extents
         print(region)
         x0,y0,width,height = region
-        self.lower_bound = y0
-        self.upper_bound = y0 + height
         key_bounds = [int(fval) for fval in np.linspace(x0,x0+width,len(self.notes)+1)]
         self.keywidth = key_bounds[1] - key_bounds[0]
         if reverseorder:
@@ -82,7 +80,13 @@ class SidewalkKeys(object):
         else:
             notes = self.notes
         self.keys = {
-            note: (key_bounds[i], key_bounds[i+1])
+            note: Key(
+                name=note,
+                sample=self.rawdata[note], 
+                xlim=(key_bounds[i], key_bounds[i+1]),
+                ylim=(y0, y0+height),
+                samplefreq=self.samplefreq,
+            )
             for i,note in enumerate(notes)
         }
         # plot resulting keys
@@ -91,7 +95,7 @@ class SidewalkKeys(object):
         #rect = Rectangle((x0,y0), width, height, edgecolor=[0,0,1], fill=None)
         #ax.add_patch(rect)
         def plot_key(name):
-            keyx0 = self.keys[name][0]
+            keyx0 = self.keys[name].xlim[0]
             rect = Rectangle((keyx0,y0), self.keywidth, height, edgecolor=[0,0,1], fill=None)
             ax.add_patch(rect)
             xtext = int(keyx0 + self.keywidth/2)
@@ -123,7 +127,9 @@ class SidewalkKeys(object):
             ref = self._blur_grayscale(bkg)
             gray = self._blur_grayscale(newframe)
             thresh,delta,regions = self._threshold(ref, gray)
-            self._identify_activity(regions)
+            pts = self._identify_activity(regions)
+            for key in self.keys.values():
+                key.play_if_hit(pts)
             # update video panels
             if show_feed:
                 cv2.imshow('Video feed', newframe)
@@ -243,4 +249,29 @@ class SidewalkKeys(object):
                         cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0),
                         thickness=3)
         return newpts
+
+
+class Key(object):
+    def __init__(self, name, sample, xlim, ylim,
+                 samplefreq=44100,
+                ):
+        self.name = name
+        self.sample = sample
+        self.xlim = xlim
+        self.ylim = ylim
+        self.samplefreq = samplefreq
+        self.buffer = None
+
+    def play_if_hit(self,pts):
+        for pt in pts:
+            if (pt[0] > self.xlim[0]) and (pt[0] < self.xlim[1]) and \
+               (pt[1] > self.ylim[0]) and (pt[1] < self.ylim[1]):
+                self.play()
+
+    def play(self):
+        if self.buffer is not None:
+            if self.buffer.is_playing():
+                self.buffer.stop()
+        self.buffer = sa.play_buffer(self.sample, 1, 2, self.samplefreq)
+
 
