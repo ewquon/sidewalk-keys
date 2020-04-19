@@ -13,12 +13,8 @@ from sklearn.cluster import AgglomerativeClustering
 from piano import read_ref_audio
 
 FPS = 20
-MIN_AREA = 500 # default: 500
-MAX_AREA_PCT = 0.9
-alpha = 0.5
-
-#saveFrameDelay = 10 #2*FPS
-saveFrameDelay = 5
+MIN_AREA = 1000 #500
+saveFrameDelay = 10 #2*FPS?
 
 
 class SidewalkKeys(object):
