@@ -53,7 +53,7 @@ class SidewalkKeys(object):
             for note in self.notes
         }
 
-    def setup(self,reverseorder=True):
+    def setup(self,delay=0,reverseorder=True):
         """Take a snapshot to use for identifying keyboard layout
 
         If reverseorder, then keys will go from left to right looking
@@ -61,7 +61,12 @@ class SidewalkKeys(object):
         """
         # capture one frame
         self.camera = cv2.VideoCapture(self.device)
-        grabbed,frame = self.camera.read()
+        for _ in range(delay*FPS//1000):
+            grabbed,frame = self.camera.read()
+            if not grabbed:
+                print('Problem getting camera frame')
+                break
+            key = cv2.waitKey(1000//FPS) & 0xFF
         region = cv2.selectROI("Select keyboard region and press any key...",
                                frame,showCrosshair=False)
         cv2.waitKey(0)
