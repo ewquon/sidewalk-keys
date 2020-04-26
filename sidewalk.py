@@ -12,7 +12,6 @@ from sklearn.cluster import AgglomerativeClustering
 
 from piano import read_ref_audio
 
-FPS = 20
 MIN_AREA = 1000 #500
 saveFrameDelay = 10 #2*FPS?
 
@@ -22,12 +21,12 @@ class SidewalkKeys(object):
     https://www.pyimagesearch.com/2015/05/25/basic-motion-detection-and-tracking-with-python-and-opencv/
     """
     def __init__(self,refpath,prefix,
-                 device=0,
+                 device=0, FPS=20
                  notes=['C4','D4','E4','F4','G4'],
-                 notelength=2.0,
-                 samplefreq=44100,
+                 notelength=2.0, samplefreq=44100,
                 ):
         self.device = device
+        self.FPS = FPS
         self.refpath = refpath
         self.prefix = prefix
         self.notes = notes
@@ -61,12 +60,12 @@ class SidewalkKeys(object):
         """
         # capture one frame
         self.camera = cv2.VideoCapture(self.device)
-        for _ in range(delay*FPS//1000):
+        for _ in range(delay*self.FPS//1000):
             grabbed,frame = self.camera.read()
             if not grabbed:
                 print('Problem getting camera frame')
                 break
-            key = cv2.waitKey(1000//FPS) & 0xFF
+            key = cv2.waitKey(1000//self.FPS) & 0xFF
         region = cv2.selectROI("Select keyboard region and press any key...",
                                frame,showCrosshair=False)
         cv2.waitKey(0)
@@ -141,7 +140,7 @@ class SidewalkKeys(object):
             if show_threshold:
                 cv2.imshow('Threshold', thresh)
             # if the esc key is pressed, break from the loop
-            key = cv2.waitKey(1000//FPS) & 0xFF
+            key = cv2.waitKey(1000//self.FPS) & 0xFF
             if key == 27: #escape
                 break
         self.stop()
